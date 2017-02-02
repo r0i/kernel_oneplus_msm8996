@@ -350,10 +350,6 @@ menuconfig MSM_SCM_XPU
 
 if MSM_SCM_XPU
 
-choice
-	prompt "XPU Violation Behavior"
-	default MSM_XPU_ERR_FATAL
-
 config MSM_XPU_ERR_FATAL
 	bool "Configure XPU violations as fatal errors"
 	help
@@ -363,8 +359,6 @@ config MSM_XPU_ERR_NONFATAL
 	bool "Configure XPU violations as non-fatal errors"
 	help
 	 Select if XPU violations have to be configured as non-fatal errors.
-
-endchoice
 
 endif
 
@@ -600,16 +594,6 @@ config MSM_IPC_ROUTER_GLINK_XPRT
 	  this layer registers a transport with IPC Router and enable
 	  message exchange.
 
-config MSM_IPC_ROUTER_MHI_XPRT
-	depends on MSM_MHI
-	depends on IPC_ROUTER
-	bool "MSM MHI XPRT Layer"
-	help
-	  MHI Transport Layer that enables off-chip communication of
-	  IPC Router. When the MHI endpoint becomes available, this layer
-	  registers the transport with IPC Router and enable message
-	  exchange.
-
 config MSM_SYSTEM_HEALTH_MONITOR
 	bool "System Health Monitor"
 	depends on MSM_QMI_INTERFACE && MSM_SUBSYSTEM_RESTART
@@ -632,7 +616,7 @@ config MSM_GLINK_PKT
 
 config MSM_TZ_SMMU
 	bool "Helper functions for SMMU configuration through TZ"
-	depends on ARCH_MSMTHULIUM || ARCH_MSMTITANIUM
+	depends on ARCH_MSMTHULIUM || ARCH_MSM8953
 	help
 	  Say 'Y' here for targets that need to call into TZ to configure
 	  SMMUs for any reason (for example, for errata workarounds or

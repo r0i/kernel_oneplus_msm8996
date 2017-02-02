@@ -57,6 +57,7 @@
 #include <linux/project_info.h>
 static u32 fw_version;
 
+
 #define subsys_to_drv(d) container_of(d, struct cnss_data, subsys_desc)
 
 #define VREG_ON			1
@@ -1462,6 +1463,7 @@ static ssize_t cnss_version_information_show(struct device *dev,
 static DEVICE_ATTR(cnss_version_information, 0444,
                 cnss_version_information_show, NULL);
 
+
 static ssize_t wlan_setup_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -1712,11 +1714,13 @@ static int cnss_wlan_pci_probe(struct pci_dev *pdev,
 		pr_err("Can't Create Device file\n");
 		goto err_pcie_suspend;
 	}
+	/* Create device file */
 	ret = device_create_file(&penv->pldev->dev, &dev_attr_cnss_version_information);
 	if (ret) {
 		pr_err("Can't Create Device file\n");
 		goto err_pcie_suspend;
 	}
+
 
 	if (cnss_wlan_is_codeswap_supported(penv->revision_id)) {
 		pr_debug("Code-swap not enabled: %d\n", penv->revision_id);
@@ -1768,6 +1772,7 @@ static void cnss_wlan_pci_remove(struct pci_dev *pdev)
 
 	dev = &penv->pldev->dev;
 	device_remove_file(dev, &dev_attr_cnss_version_information);
+
 	device_remove_file(dev, &dev_attr_wlan_setup);
 
 	if (penv->smmu_mapping)
@@ -1849,7 +1854,7 @@ static int cnss_wlan_runtime_suspend(struct device *dev)
 	if (wdrv && wdrv->runtime_ops && wdrv->runtime_ops->runtime_suspend)
 		ret = wdrv->runtime_ops->runtime_suspend(to_pci_dev(dev));
 
-	pr_debug("cnss: runtime suspend status: %d\n", ret);
+	pr_info("cnss: runtime suspend status: %d\n", ret);
 
 	return ret;
 
@@ -1874,7 +1879,8 @@ static int cnss_wlan_runtime_resume(struct device *dev)
 
 	if (wdrv && wdrv->runtime_ops && wdrv->runtime_ops->runtime_resume)
 		ret = wdrv->runtime_ops->runtime_resume(to_pci_dev(dev));
-	pr_debug("cnss: runtime resume status: %d\n", ret);
+
+	pr_info("cnss: runtime resume status: %d\n", ret);
 
 	return ret;
 }
@@ -3072,6 +3078,7 @@ skip_ramdump:
 
         /* product information */
         push_component_info(WCN, "QCA6164A", "QualComm");
+
 
 	pr_info("cnss: Platform driver probed successfully.\n");
 	return ret;

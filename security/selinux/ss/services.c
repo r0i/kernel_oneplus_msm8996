@@ -2032,7 +2032,7 @@ int security_load_policy(void *data, size_t len)
 	}
 	newpolicydb = oldpolicydb + 1;
 
-    printk(KERN_ERR "SELinux: security_load_policy, ss_initialized: %d\n",ss_initialized);
+	printk(KERN_ERR "SELinux: security_load_policy, ss_initialized: %d\n",ss_initialized);
 	if (!ss_initialized) {
 		avtab_cache_init();
 		rc = policydb_read(&policydb, fp);

@@ -1140,18 +1140,18 @@ int wlan_hdd_validate_context(hdd_context_t *pHddCtx)
 {
 
     if (NULL == pHddCtx || NULL == pHddCtx->cfg_ini) {
-        hddLog(LOG1, FL("%pS HDD context is Null"), (void *)_RET_IP_);
+        hddLog(LOGE, FL("%pS HDD context is Null"), (void *)_RET_IP_);
         return -ENODEV;
     }
 
     if (pHddCtx->isLogpInProgress) {
-        hddLog(LOG1, FL("%pS LOGP in Progress. Ignore!!!"), (void *)_RET_IP_);
+        hddLog(LOGE, FL("%pS LOGP in Progress. Ignore!!!"), (void *)_RET_IP_);
         return -EAGAIN;
     }
 
     if ((pHddCtx->isLoadInProgress) ||
         (pHddCtx->isUnloadInProgress)) {
-        hddLog(LOG1,
+        hddLog(LOGE,
              FL("%pS Unloading/Loading in Progress. Ignore!!!"),
              (void *)_RET_IP_);
         return -EAGAIN;
@@ -9872,11 +9872,7 @@ static void __hdd_set_multicast_list(struct net_device *dev)
 
    /* Delete already configured multicast address list */
    if (0 < pAdapter->mc_addr_list.mc_cnt)
-      if (wlan_hdd_set_mc_addr_list(pAdapter, false)) {
-           hddLog(VOS_TRACE_LEVEL_ERROR, FL("failed to clear mc addr list"));
-           return;
-      }
-
+      wlan_hdd_set_mc_addr_list(pAdapter, false);
 
    if (dev->flags & IFF_ALLMULTI)
    {
@@ -9933,8 +9929,7 @@ static void __hdd_set_multicast_list(struct net_device *dev)
    }
 
    /* Configure the updated multicast address list */
-   if (wlan_hdd_set_mc_addr_list(pAdapter, true))
-       hddLog(VOS_TRACE_LEVEL_INFO, FL("failed to set mc addr list"));
+   wlan_hdd_set_mc_addr_list(pAdapter, true);
 
    EXIT();
    return;
@@ -16795,17 +16790,11 @@ void hdd_unsafe_channel_restart_sap(hdd_context_t *hdd_ctx)
 						NULL,
 						0);
 
-				hddLog(LOG1, FL("driver to start sap: %d"),
-					hdd_ctx->cfg_ini->sap_restrt_ch_avoid);
-				if (hdd_ctx->cfg_ini->sap_restrt_ch_avoid) {
-					wlan_hdd_netif_queue_control(adapter,
-							WLAN_NETIF_TX_DISABLE,
-							WLAN_CONTROL_PATH);
+				hdd_hostapd_stop(adapter->dev);
+
+				if (hdd_ctx->cfg_ini->sap_restrt_ch_avoid)
 					schedule_work(
 					&hdd_ctx->sap_start_work);
-				}
-				else
-					hdd_hostapd_stop(adapter->dev);
 
 				return;
 			}
@@ -18141,9 +18130,6 @@ int hdd_init_packet_filtering(hdd_context_t *hdd_ctx,
 		hddLog(LOGE, FL("Could not allocate Memory"));
 		return -ENOMEM;
 	}
-
-	vos_mem_zero(adapter->mc_addr_list.addr,
-		(hdd_ctx->max_mc_addr_list * ETH_ALEN));
 
 	return 0;
 }

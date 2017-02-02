@@ -281,6 +281,7 @@ int tfa98xx_bulk_write_raw(struct snd_soc_codec *codec, const u8 *data,
 }
 
 
+
 static void tfa98xx_dsp_init(struct work_struct *work)
 {
 	struct tfa98xx *tfa98xx = container_of(work, struct tfa98xx, init_work);
@@ -887,13 +888,13 @@ static int tfa98xx_i2c_probe(struct i2c_client *i2c,
 	struct tfa98xx *tfa98xx;
 	int ret;
 	struct device_node *np = i2c->dev.of_node;
-    int error = 0;
+	int error = 0;
 
-    pr_err("%s\n",__func__);
+	pr_err("%s\n",__func__);
 
 
-    if(np!=NULL)
-        tfa_codec_np =np;
+	if(np!=NULL)
+		tfa_codec_np =np;
 
 	if (!i2c_check_functionality(i2c->adapter, I2C_FUNC_I2C)) {
 		dev_err(&i2c->dev, "check_functionality failed\n");

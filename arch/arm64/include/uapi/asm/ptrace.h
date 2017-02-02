@@ -44,6 +44,7 @@
 #define PSR_I_BIT	0x00000080
 #define PSR_A_BIT	0x00000100
 #define PSR_D_BIT	0x00000200
+#define PSR_PAN_BIT	0x00400000
 #define PSR_Q_BIT	0x08000000
 #define PSR_V_BIT	0x10000000
 #define PSR_C_BIT	0x20000000
@@ -71,11 +72,13 @@ struct user_pt_regs {
 	__u64		pstate;
 };
 
+#if defined (__LP64__)
 struct user_fpsimd_state {
 	__uint128_t	vregs[32];
 	__u32		fpsr;
 	__u32		fpcr;
 };
+#endif
 
 struct user_hwdebug_state {
 	__u32		dbg_info;

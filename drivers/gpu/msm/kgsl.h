@@ -27,6 +27,7 @@
 #include <linux/dma-attrs.h>
 #include <linux/uaccess.h>
 #include <asm/cacheflush.h>
+#include <linux/kthread.h>
 
 /* The number of memstore arrays limits the number of contexts allowed.
  * If more contexts are needed, update multiple for MEMSTORE_SIZE
@@ -132,6 +133,9 @@ struct kgsl_driver {
 	unsigned int full_cache_threshold;
 	struct workqueue_struct *workqueue;
 	struct workqueue_struct *mem_workqueue;
+
+	struct kthread_worker worker;
+	struct task_struct *worker_thread;
 };
 
 extern struct kgsl_driver kgsl_driver;
@@ -275,7 +279,7 @@ struct kgsl_event {
 	void *priv;
 	struct list_head node;
 	unsigned int created;
-	struct work_struct work;
+	struct kthread_work work;
 	int result;
 	struct kgsl_event_group *group;
 };
@@ -542,4 +546,19 @@ static inline void __user *to_user_ptr(uint64_t address)
 	return (void __user *)(uintptr_t)address;
 }
 
+static inline void kgsl_gpu_sysfs_add_link(struct kobject *dst,
+			struct kobject *src, const char *src_name,
+			const char *dst_name)
+{
+	struct kernfs_node *old;
+
+	if (dst == NULL || src == NULL)
+		return;
+
+	old = sysfs_get_dirent(src->sd, src_name);
+	if (IS_ERR_OR_NULL(old))
+		return;
+
+	kernfs_create_link(dst->sd, dst_name, old);
+}
 #endif /* __KGSL_H */

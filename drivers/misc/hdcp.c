@@ -92,12 +92,6 @@
  */
 #define SLEEP_SET_HW_KEY_MS 300
 
-
-#define QSEECOM_ALIGN_SIZE    0x40
-#define QSEECOM_ALIGN_MASK    (QSEECOM_ALIGN_SIZE - 1)
-#define QSEECOM_ALIGN(x)\
-	((x + QSEECOM_ALIGN_SIZE) & (~QSEECOM_ALIGN_MASK))
-
 /* hdcp command status */
 #define HDCP_SUCCESS      0
 
@@ -1199,7 +1193,7 @@ static void hdcp_lib_msg_recvd(struct hdcp_lib_handle *handle)
 	struct hdcp_rcvd_msg_req *req_buf;
 	struct hdcp_rcvd_msg_rsp *rsp_buf;
 	uint32_t msglen;
-	char *msg;
+	char *msg = NULL;
 
 	if (!handle || !handle->qseecom_handle ||
 		!handle->qseecom_handle->sbuf) {
@@ -1300,12 +1294,13 @@ static void hdcp_lib_msg_recvd(struct hdcp_lib_handle *handle)
 
 	/* check if it's a repeater */
 	if ((rsp_buf->msg[0] == SKE_SEND_EKS_MESSAGE_ID) &&
-			(rsp_buf->msglen == SKE_SEND_EKS_MESSAGE_SIZE)) {
+		 (rsp_buf->msglen == SKE_SEND_EKS_MESSAGE_SIZE)) {
 		if ((rsp_buf->flag ==
-			HDCP_TXMTR_SUBSTATE_WAITING_FOR_RECIEVERID_LIST) &&
-						(rsp_buf->timeout > 0))
+			 HDCP_TXMTR_SUBSTATE_WAITING_FOR_RECIEVERID_LIST) &&
+			 (rsp_buf->timeout > 0)) {
 			handle->repeater_flag = true;
 			handle->update_stream = true;
+		}
 	}
 
 	memset(handle->listener_buf, 0, MAX_TX_MESSAGE_SIZE);

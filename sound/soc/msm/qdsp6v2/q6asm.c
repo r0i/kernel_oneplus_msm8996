@@ -317,12 +317,12 @@ static void config_debug_fs_write(struct audio_buffer *ab)
 }
 static void config_debug_fs_init(void)
 {
-	out_buffer = kzalloc(OUT_BUFFER_SIZE, GFP_KERNEL);
+	out_buffer = kmalloc(OUT_BUFFER_SIZE, GFP_KERNEL);
 	if (out_buffer == NULL) {
 		pr_err("%s: kmalloc() for out_buffer failed\n", __func__);
 		goto outbuf_fail;
 	}
-	in_buffer = kzalloc(IN_BUFFER_SIZE, GFP_KERNEL);
+	in_buffer = kmalloc(IN_BUFFER_SIZE, GFP_KERNEL);
 	if (in_buffer == NULL) {
 		pr_err("%s: kmalloc() for in_buffer failed\n", __func__);
 		goto inbuf_fail;
@@ -1179,9 +1179,8 @@ int q6asm_audio_client_buf_alloc(unsigned int dir,
 	struct audio_buffer *buf;
 	size_t len;
 
-	if (!(ac) || !(bufsz) || ((dir != IN) && (dir != OUT))) {
-		pr_err("%s: ac %pK bufsz %d dir %d\n", __func__, ac, bufsz,
-			dir);
+	if (!(ac) || ((dir != IN) && (dir != OUT))) {
+		pr_err("%s: ac %pK dir %d\n", __func__, ac, dir);
 		return -EINVAL;
 	}
 
@@ -1675,6 +1674,7 @@ static int32_t q6asm_callback(struct apr_client_data *data, void *priv)
 		case ASM_STREAM_CMD_OPEN_PUSH_MODE_READ:
 		case ASM_STREAM_CMD_OPEN_READWRITE_V2:
 		case ASM_STREAM_CMD_OPEN_LOOPBACK_V2:
+		case ASM_STREAM_CMD_OPEN_TRANSCODE_LOOPBACK:
 		case ASM_DATA_CMD_MEDIA_FMT_UPDATE_V2:
 		case ASM_STREAM_CMD_SET_ENCDEC_PARAM:
 		case ASM_DATA_CMD_REMOVE_INITIAL_SILENCE:
@@ -2253,6 +2253,14 @@ static int __q6asm_open_read(struct audio_client *ac,
 		open.mode_flags |= BUFFER_META_ENABLE;
 		open.enc_cfg_id = ASM_MEDIA_FMT_AAC_V2;
 		break;
+	case FORMAT_G711_ALAW_FS:
+		open.mode_flags |= BUFFER_META_ENABLE;
+		open.enc_cfg_id = ASM_MEDIA_FMT_G711_ALAW_FS;
+		break;
+	case FORMAT_G711_MLAW_FS:
+		open.mode_flags |= BUFFER_META_ENABLE;
+		open.enc_cfg_id = ASM_MEDIA_FMT_G711_MLAW_FS;
+		break;
 	case FORMAT_V13K:
 		open.mode_flags |= BUFFER_META_ENABLE;
 		open.enc_cfg_id = ASM_MEDIA_FMT_V13K_FS;
@@ -2365,6 +2373,9 @@ int q6asm_open_write_compressed(struct audio_client *ac, uint32_t format,
 		break;
 	case FORMAT_EAC3:
 		open.fmt_id = ASM_MEDIA_FMT_EAC3;
+		break;
+	case FORMAT_DTS:
+		open.fmt_id = ASM_MEDIA_FMT_DTS;
 		break;
 	default:
 		pr_err("%s: Invalid format[%d]\n", __func__, format);
@@ -2728,6 +2739,12 @@ static int __q6asm_open_read_write(struct audio_client *ac, uint32_t rd_format,
 	case FORMAT_MPEG4_AAC:
 		open.enc_cfg_id = ASM_MEDIA_FMT_AAC_V2;
 		break;
+	case FORMAT_G711_ALAW_FS:
+		open.enc_cfg_id = ASM_MEDIA_FMT_G711_ALAW_FS;
+		break;
+	case FORMAT_G711_MLAW_FS:
+		open.enc_cfg_id = ASM_MEDIA_FMT_G711_MLAW_FS;
+		break;
 	case FORMAT_V13K:
 		open.enc_cfg_id = ASM_MEDIA_FMT_V13K_FS;
 		break;
@@ -2806,7 +2823,6 @@ int q6asm_open_read_write_v2(struct audio_client *ac, uint32_t rd_format,
 int q6asm_open_loopback_v2(struct audio_client *ac, uint16_t bits_per_sample)
 {
 	int rc = 0x00;
-	struct asm_stream_cmd_open_loopback_v2 open;
 
 	if (ac == NULL) {
 		pr_err("%s: APR handle NULL\n", __func__);
@@ -2818,29 +2834,67 @@ int q6asm_open_loopback_v2(struct audio_client *ac, uint16_t bits_per_sample)
 	}
 	pr_debug("%s: session[%d]\n", __func__, ac->session);
 
-	q6asm_add_hdr(ac, &open.hdr, sizeof(open), TRUE);
-	atomic_set(&ac->cmd_state, -1);
-	open.hdr.opcode = ASM_STREAM_CMD_OPEN_LOOPBACK_V2;
+	if (ac->perf_mode == LOW_LATENCY_PCM_MODE) {
+		struct asm_stream_cmd_open_transcode_loopback_t open;
 
-	open.mode_flags = 0;
-	open.src_endpointype = 0;
-	open.sink_endpointype = 0;
-	/* source endpoint : matrix */
-	open.postprocopo_id = q6asm_get_asm_topology_cal();
+		q6asm_add_hdr(ac, &open.hdr, sizeof(open), TRUE);
+		atomic_set(&ac->cmd_state, -1);
+		open.hdr.opcode = ASM_STREAM_CMD_OPEN_TRANSCODE_LOOPBACK;
 
-	ac->app_type = q6asm_get_asm_app_type_cal();
-	ac->topology = open.postprocopo_id;
-	open.bits_per_sample = bits_per_sample;
-	open.reserved = 0;
+		open.mode_flags = 0;
+		open.src_endpoint_type = 0;
+		open.sink_endpoint_type = 0;
+		open.src_format_id = ASM_MEDIA_FMT_MULTI_CHANNEL_PCM_V2;
+		open.sink_format_id = ASM_MEDIA_FMT_MULTI_CHANNEL_PCM_V2;
+		/* source endpoint : matrix */
+		open.audproc_topo_id = q6asm_get_asm_topology_cal();
 
-	rc = apr_send_pkt(ac->apr, (uint32_t *) &open);
-	if (rc < 0) {
-		pr_err("%s: open failed op[0x%x]rc[%d]\n", __func__,
-				open.hdr.opcode, rc);
-		rc = -EINVAL;
-		goto fail_cmd;
+		ac->app_type = q6asm_get_asm_app_type_cal();
+		if (ac->perf_mode == LOW_LATENCY_PCM_MODE)
+			open.mode_flags |= ASM_LOW_LATENCY_STREAM_SESSION;
+		else
+			open.mode_flags |= ASM_LEGACY_STREAM_SESSION;
+		ac->topology = open.audproc_topo_id;
+		open.bits_per_sample = bits_per_sample;
+		open.reserved = 0;
+		pr_debug("%s: opening a transcode_loopback with mode_flags =[%d] session[%d]\n",
+				__func__, open.mode_flags, ac->session);
+
+		rc = apr_send_pkt(ac->apr, (uint32_t *) &open);
+		if (rc < 0) {
+			pr_err("%s: open failed op[0x%x]rc[%d]\n",
+					__func__, open.hdr.opcode, rc);
+			rc = -EINVAL;
+			goto fail_cmd;
+		}
+	} else {/*if(ac->perf_mode == LEGACY_PCM_MODE)*/
+		struct asm_stream_cmd_open_loopback_v2 open;
+
+		q6asm_add_hdr(ac, &open.hdr, sizeof(open), TRUE);
+		atomic_set(&ac->cmd_state, -1);
+		open.hdr.opcode = ASM_STREAM_CMD_OPEN_LOOPBACK_V2;
+
+		open.mode_flags = 0;
+		open.src_endpointype = 0;
+		open.sink_endpointype = 0;
+		/* source endpoint : matrix */
+		open.postprocopo_id = q6asm_get_asm_topology_cal();
+
+		ac->app_type = q6asm_get_asm_app_type_cal();
+		ac->topology = open.postprocopo_id;
+		open.bits_per_sample = bits_per_sample;
+		open.reserved = 0;
+		pr_debug("%s: opening a loopback_v2 with mode_flags =[%d] session[%d]\n",
+				__func__, open.mode_flags, ac->session);
+
+		rc = apr_send_pkt(ac->apr, (uint32_t *) &open);
+		if (rc < 0) {
+			pr_err("%s: open failed op[0x%x]rc[%d]\n",
+					__func__, open.hdr.opcode, rc);
+			rc = -EINVAL;
+			goto fail_cmd;
+		}
 	}
-
 	rc = wait_event_timeout(ac->cmd_wait,
 			(atomic_read(&ac->cmd_state) >= 0), 5*HZ);
 	if (!rc) {
@@ -3368,6 +3422,57 @@ int q6asm_enc_cfg_blk_aac(struct audio_client *ac,
 	enc_cfg.enc_mode = mode;
 	enc_cfg.aac_fmt_flag = format;
 	enc_cfg.channel_cfg = channels;
+	enc_cfg.sample_rate = sample_rate;
+
+	rc = apr_send_pkt(ac->apr, (uint32_t *) &enc_cfg);
+	if (rc < 0) {
+		pr_err("%s: Comamnd %d failed %d\n",
+			__func__, ASM_STREAM_CMD_SET_ENCDEC_PARAM, rc);
+		rc = -EINVAL;
+		goto fail_cmd;
+	}
+	rc = wait_event_timeout(ac->cmd_wait,
+			(atomic_read(&ac->cmd_state) >= 0), 5*HZ);
+	if (!rc) {
+		pr_err("%s: timeout. waited for FORMAT_UPDATE\n",
+			__func__);
+		rc = -ETIMEDOUT;
+		goto fail_cmd;
+	}
+	if (atomic_read(&ac->cmd_state) > 0) {
+		pr_err("%s: DSP returned error[%s]\n",
+				__func__, adsp_err_get_err_str(
+				atomic_read(&ac->cmd_state)));
+		rc = adsp_err_get_lnx_err_code(
+				atomic_read(&ac->cmd_state));
+		goto fail_cmd;
+	}
+	return 0;
+fail_cmd:
+	return rc;
+}
+
+int q6asm_enc_cfg_blk_g711(struct audio_client *ac,
+			uint32_t frames_per_buf,
+			uint32_t sample_rate)
+{
+	struct asm_g711_enc_cfg_v2 enc_cfg;
+	int rc = 0;
+
+	pr_debug("%s: session[%d]frames[%d]SR[%d]\n",
+		 __func__, ac->session, frames_per_buf,
+		sample_rate);
+
+	q6asm_add_hdr(ac, &enc_cfg.hdr, sizeof(enc_cfg), TRUE);
+	atomic_set(&ac->cmd_state, -1);
+
+	enc_cfg.hdr.opcode = ASM_STREAM_CMD_SET_ENCDEC_PARAM;
+	enc_cfg.encdec.param_id = ASM_PARAM_ID_ENCDEC_ENC_CFG_BLK_V2;
+	enc_cfg.encdec.param_size = sizeof(struct asm_g711_enc_cfg_v2) -
+				sizeof(struct asm_stream_cmd_set_encdec_param);
+	enc_cfg.encblk.frames_per_buf = frames_per_buf;
+	enc_cfg.encblk.enc_cfg_blk_size  = enc_cfg.encdec.param_size -
+				sizeof(struct asm_enc_cfg_blk_param_v2);
 	enc_cfg.sample_rate = sample_rate;
 
 	rc = apr_send_pkt(ac->apr, (uint32_t *) &enc_cfg);
@@ -5267,7 +5372,7 @@ static int q6asm_memory_map_regions(struct audio_client *ac, int dir,
 	struct asm_buffer_node *buffer_node = NULL;
 	int	rc = 0;
 	int    i = 0;
-	uint32_t cmd_size = 0;
+	int	cmd_size = 0;
 	uint32_t bufcnt_t;
 	uint32_t bufsz_t;
 
@@ -5289,24 +5394,9 @@ static int q6asm_memory_map_regions(struct audio_client *ac, int dir,
 		bufsz_t = PAGE_ALIGN(bufsz_t);
 	}
 
-	if (bufcnt_t > (UINT_MAX
-			- sizeof(struct avs_cmd_shared_mem_map_regions))
-			/ sizeof(struct avs_shared_map_region_payload)) {
-		pr_err("%s: Unsigned Integer Overflow. bufcnt_t = %u\n",
-				__func__, bufcnt_t);
-		return -EINVAL;
-	}
-
 	cmd_size = sizeof(struct avs_cmd_shared_mem_map_regions)
 			+ (sizeof(struct avs_shared_map_region_payload)
 							* bufcnt_t);
-
-
-	if (bufcnt > (UINT_MAX / sizeof(struct asm_buffer_node))) {
-		pr_err("%s: Unsigned Integer Overflow. bufcnt = %u\n",
-				__func__, bufcnt);
-		return -EINVAL;
-	}
 
 	buffer_node = kzalloc(sizeof(struct asm_buffer_node) * bufcnt,
 				GFP_KERNEL);

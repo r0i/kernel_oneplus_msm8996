@@ -909,6 +909,9 @@ static inline int wants_signal(int sig, struct task_struct *p)
 {
 	if (sigismember(&p->blocked, sig))
 		return 0;
+	//add for PF_EXITING task to be killed
+	if ((p->flags & PF_EXITING) && (current == p) && (sig == SIGKILL))
+		return 1;
 	if (p->flags & PF_EXITING)
 		return 0;
 	if (sig == SIGKILL)
@@ -1020,6 +1023,19 @@ static inline void userns_fixup_signal_uid(struct siginfo *info, struct task_str
 }
 #endif
 
+static int print_key_process_murder __read_mostly = 1;
+
+static bool is_zygote_process(struct task_struct *t)
+{
+	const struct cred *tcred = __task_cred(t);
+
+	if(!strcmp(t->comm, "main") && (tcred->uid.val == 0) && (t->parent != 0 && !strcmp(t->parent->comm,"init")))
+		return true;
+	else
+		return false;
+	return false;
+}
+
 static int __send_signal(int sig, struct siginfo *info, struct task_struct *t,
 			int group, int from_ancestor_ns)
 {
@@ -1031,6 +1047,14 @@ static int __send_signal(int sig, struct siginfo *info, struct task_struct *t,
 	assert_spin_locked(&t->sighand->siglock);
 
 	result = TRACE_SIGNAL_IGNORED;
+
+		if(print_key_process_murder) {
+			if(!strcmp(t->comm, "system_server") || is_zygote_process(t) || !strcmp(t->comm, "surfaceflinger") || !strcmp(t->comm, "servicemanager")) {
+			   printk( "process %d:%s send sig:%d to process %d:%s\n", current->pid, current->comm,sig, t->pid, t->comm);
+		    }
+		}
+
+	
 	if (!prepare_signal(sig, t,
 			from_ancestor_ns || (info == SEND_SIG_FORCED)))
 		goto ret;
@@ -1199,6 +1223,10 @@ int do_send_sig_info(int sig, struct siginfo *info, struct task_struct *p,
                 rcu_read_unlock();
             }
         }
+
+	if(sig == SIGQUIT || SIGSEGV == sig)
+            if(p && p->flags & PF_FROZEN)
+		unfreezer_fork(p);
 	if (lock_task_sighand(p, &flags)) {
 		ret = send_signal(sig, info, p, group);
 		unlock_task_sighand(p, &flags);
@@ -2504,7 +2532,7 @@ EXPORT_SYMBOL(unblock_all_signals);
  */
 SYSCALL_DEFINE0(restart_syscall)
 {
-	struct restart_block *restart = &current->restart_block;
+	struct restart_block *restart = &current_thread_info()->restart_block;
 	return restart->fn(restart);
 }
 

@@ -12790,6 +12790,8 @@ void wma_vdev_resp_timer(void *data)
 		}
 		WMA_LOGI("%s: bssid %pM vdev_id %d", __func__, params->bssId,
 						tgt_req->vdev_id);
+		wma_send_msg(wma, WDA_ADD_BSS_RSP, (void *)params, 0);
+		goto free_tgt_req;
 error0:
 		if (peer)
 			wma_remove_peer(wma, params->bssId,
@@ -21360,7 +21362,7 @@ static int wma_wow_wakeup_host_event(void *handle, u_int8_t *event,
 	if ((wake_info->wake_reason != WOW_REASON_UNSPECIFIED) ||
 	    (wake_info->wake_reason == WOW_REASON_UNSPECIFIED &&
 	     !wmi_get_runtime_pm_inprogress(wma->wmi_handle))) {
-		WMA_LOGA("WOW wakeup host event received (reason: %s(%d)) for vdev %d",
+		WMA_LOGD("WOW wakeup host event received (reason: %s(%d)) for vdev %d",
 			wma_wow_wake_reason_str(wake_info->wake_reason, wma),
 			wake_info->wake_reason,
 			wake_info->vdev_id);
@@ -27713,9 +27715,9 @@ VOS_STATUS wma_get_buf_extscan_change_monitor_cmd(tp_wma_handle wma_handle,
 	int numap = psigchange->numAp;
 	tSirAPThresholdParam  *src_ap = psigchange->ap;
 
-	if ((numap <= 0) || (numap > WLAN_EXTSCAN_MAX_SIGNIFICANT_CHANGE_APS)) {
-		WMA_LOGE("%s: Invalid number of APs: %d",
-			__func__, numap);
+	if (!numap) {
+		WMA_LOGE("%s: Invalid number of bssid's",
+			__func__);
 		return VOS_STATUS_E_INVAL;
 	}
 	len += WMI_TLV_HDR_SIZE;

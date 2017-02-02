@@ -112,7 +112,7 @@ irqreturn_t switch_dev_interrupt(int irq, void *_dev)
 
 static void timer_handle(unsigned long arg)
 {
-//	mod_timer(&s_timer, jiffies + HZ);
+//	mod_timer(&s_timer, jiffies + msecs_to_jiffies(1000));
 //	if(set_gpio_by_pinctrl() < 0)
 //	printk(KERN_ERR "tristate_key set_gpio_by_pinctrl FAILD!!!. \n");
 	schedule_work(&switch_data->work);
@@ -435,7 +435,7 @@ static int tristate_dev_probe(struct platform_device *pdev)
 	switch_data->input->dev.parent = &pdev->dev;
 	set_bit(EV_KEY, switch_data->input->evbit);
 	for (i = KEYCODE_BASE; i < KEYCODE_BASE + TOTAL_KEYCODES; i++)
-	    set_bit(i, switch_data->input->keybit);
+		set_bit(i, switch_data->input->keybit);
 	input_set_drvdata(switch_data->input, switch_data);
 	error = input_register_device(switch_data->input);
 	if (error) {
@@ -577,7 +577,7 @@ static int tristate_dev_probe(struct platform_device *pdev)
 
         init_timer(&switch_data->s_timer);
         switch_data->s_timer.function = &timer_handle;
-        switch_data->s_timer.expires = jiffies + 5*HZ;
+        switch_data->s_timer.expires = jiffies + msecs_to_jiffies(5000);
 
         add_timer(&switch_data->s_timer);
 
@@ -646,4 +646,3 @@ module_platform_driver(tristate_dev_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("switch Profiles by this triple key driver");
-

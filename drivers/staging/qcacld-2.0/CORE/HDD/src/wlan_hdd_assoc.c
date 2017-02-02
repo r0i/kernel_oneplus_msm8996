@@ -4016,8 +4016,7 @@ hdd_smeRoamCallback(void *pContext, tCsrRoamInfo *pRoamInfo, tANI_U32 roamId,
                 /* Call to clear any MC Addr List filter applied after
                  * successful connection.
                  */
-                if (wlan_hdd_set_mc_addr_list(pAdapter, FALSE))
-                    hddLog(VOS_TRACE_LEVEL_ERROR, FL("failed to clear mc addr list"));
+                wlan_hdd_set_mc_addr_list(pAdapter, FALSE);
 #endif
             }
             break;

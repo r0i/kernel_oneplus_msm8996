@@ -186,12 +186,7 @@ static struct tag_node *tag_node_tree_search(struct rb_root *root, tag_t tag)
 	while (node) {
 		struct tag_node *data = rb_entry(node, struct tag_node, node);
 		int result;
-	     //RB_DEBUG("qtaguid: tag_node_tree_search(0x%llx): "
-	     //	 " node=%p data=%p\n", tag, node, data);
 		result = tag_compare(tag, data->tag);
-		//RB_DEBUG("qtaguid: tag_node_tree_search(0x%llx): "
-		//	 " data.tag=0x%llx (uid=%u) res=%d\n",
-		//	 tag, data->tag, get_uid_from_tag(data->tag), result);
 		if (result < 0)
 			node = node->rb_left;
 		else if (result > 0)
@@ -1315,6 +1310,7 @@ done:
 	return new_tag_stat_entry;
 }
 
+//process which use the same uid.
 static void if_tag_stat_update(const char *ifname, uid_t uid,
 			       const struct sock *sk, enum ifs_tx_rx direction,
 			       int proto, int bytes,
@@ -1371,6 +1367,7 @@ static void if_tag_stat_update(const char *ifname, uid_t uid,
 		 * Updating the {acct_tag, uid_tag} entry handles both stats:
 		 * {0, uid_tag} will also get updated.
 		 */
+        //process which use the same uid.
         tag_stat_update(tag_stat_entry, direction, proto, bytes, task_comm, task_pid);
 		goto unlock;
 	}
@@ -1409,6 +1406,7 @@ static void if_tag_stat_update(const char *ifname, uid_t uid,
 		 */
 		BUG_ON(!new_tag_stat);
 	}
+//process which use the same uid.
 	tag_stat_update(new_tag_stat, direction, proto, bytes, task_comm, task_pid);
 unlock:
 	spin_unlock_bh(&iface_entry->tag_stat_list_lock);
@@ -1655,6 +1653,7 @@ static struct sock *qtaguid_find_sk(const struct sk_buff *skb,
 	return sk;
 }
 
+//process which use the same uid.
 static void account_for_uid(const struct sk_buff *skb,
                            const struct sock *alternate_sk, uid_t uid,
                            struct xt_action_param *par,
@@ -1669,12 +1668,11 @@ static void account_for_uid(const struct sk_buff *skb,
 	MT_DEBUG("qtaguid[%d]: dev name=%s type=%d fam=%d proto=%d dir=%d\n",
 		 par->hooknum, el_dev->name, el_dev->type,
 		 par->family, proto, direction);
-
 	if_tag_stat_update(el_dev->name, uid,
 			   skb->sk ? skb->sk : alternate_sk,
 			   direction,
 			   proto, skb->len,
-			   task_comm, task_pid);
+               task_comm, task_pid);
 }
 
 static bool qtaguid_mt(const struct sk_buff *skb, struct xt_action_param *par)
@@ -1780,7 +1778,7 @@ static bool qtaguid_mt(const struct sk_buff *skb, struct xt_action_param *par)
 	if (filp == NULL) {
 		MT_DEBUG("qtaguid[%d]: leaving filp=NULL\n", par->hooknum);
 		if (do_tag_stat)
-			account_for_uid(skb, sk, 0, par, "LostFile", 0);
+		account_for_uid(skb, sk, 0, par, "LostFile", 0);
 		res = ((info->match ^ info->invert) &
 			(XT_QTAGUID_UID | XT_QTAGUID_GID)) == 0;
 		atomic64_inc(&qtu_events.match_no_sk_file);
@@ -2509,8 +2507,11 @@ static ssize_t qtaguid_ctrl_parse(const char *input, size_t count)
 	case 'u':
 		res = ctrl_cmd_untag(input);
 		break;
+//statistics by process information.
 	case 'r':
+		//printk("------ peirs  qtaguid_ctrl_parse case r begin. -----\n");
 		res = qtagpid_reset_stats();
+		//printk("------ peirs  qtaguid_ctrl_parse case r end. -----\n");
 		break;
 
 	case 'n':

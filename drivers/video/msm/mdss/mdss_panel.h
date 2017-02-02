@@ -19,19 +19,13 @@
 #include <linux/stringify.h>
 #include <linux/types.h>
 #include <linux/debugfs.h>
+#include "mdss_oem_config.h"
 
-#define KHZ_TO_HZ 1000
 
 /* panel id type */
 struct panel_id {
 	u16 id;
 	u16 type;
-};
-
-enum fps_resolution {
-	FPS_RESOLUTION_DEFAULT,
-	FPS_RESOLUTION_HZ,
-	FPS_RESOLUTION_KHZ,
 };
 
 #define DEFAULT_FRAME_RATE	60
@@ -166,7 +160,7 @@ enum {
 };
 
 struct mdss_intf_recovery {
-	void (*fxn)(void *ctx, int event);
+	int (*fxn)(void *ctx, int event);
 	void *data;
 };
 
@@ -262,7 +256,17 @@ enum mdss_intf_events {
 	MDSS_EVENT_DSI_RECONFIG_CMD,
 	MDSS_EVENT_DSI_RESET_WRITE_PTR,
 	MDSS_EVENT_PANEL_TIMING_SWITCH,
-	MDSS_EVENT_UPDATE_LIVEDISPLAY,
+	MDSS_EVENT_MAX,
+	MDSS_EVENT_PANEL_SET_ACL,
+	MDSS_EVENT_PANEL_GET_ACL,
+	MDSS_EVENT_PANEL_SET_MAX_BRIGHTNESS,
+	MDSS_EVENT_PANEL_GET_MAX_BRIGHTNESS,
+	MDSS_EVENT_PANEL_SET_SRGB_MODE,
+	MDSS_EVENT_PANEL_GET_SRGB_MODE,
+	MDSS_EVENT_PANEL_SET_ADOBE_RGB_MODE,
+	MDSS_EVENT_PANEL_GET_ADOBE_RGB_MODE,
+	MDSS_EVENT_PANEL_SET_DCI_P3_MODE,
+	MDSS_EVENT_PANEL_GET_DCI_P3_MODE,
 };
 
 struct lcd_panel_info {
@@ -410,6 +414,7 @@ struct mipi_panel_info {
 
 	char lp11_init;
 	u32  init_delay;
+	u32  post_init_delay;
 };
 
 struct edp_panel_info {
@@ -580,8 +585,6 @@ struct mdss_mdp_pp_tear_check {
 	u32 refx100;
 };
 
-struct mdss_livedisplay_ctx;
-
 struct mdss_panel_roi_alignment {
 	u32 xstart_pix_align;
 	u32 width_pix_align;
@@ -722,8 +725,6 @@ struct mdss_panel_info {
 	 */
 	u32 adjust_timer_delay_ms;
 
-	struct mdss_livedisplay_ctx *livedisplay;
-
 	/* debugfs structure for the panel */
 	struct mdss_panel_debugfs_info *debugfs_info;
 };
@@ -803,16 +804,13 @@ struct mdss_panel_debugfs_info {
  * mdss_get_panel_framerate() - get panel frame rate based on panel information
  * @panel_info:	Pointer to panel info containing all panel information
  */
-static inline u32 mdss_panel_get_framerate(struct mdss_panel_info *panel_info,
-					   u32 flags)
+static inline u32 mdss_panel_get_framerate(struct mdss_panel_info *panel_info)
 {
 	u32 frame_rate, pixel_total;
 	u64 rate;
 
-	if (panel_info == NULL) {
-		frame_rate = DEFAULT_FRAME_RATE;
-		goto end;
-	}
+	if (panel_info == NULL)
+		return DEFAULT_FRAME_RATE;
 
 	switch (panel_info->type) {
 	case MIPI_VIDEO_PANEL:
@@ -827,7 +825,9 @@ static inline u32 mdss_panel_get_framerate(struct mdss_panel_info *panel_info,
 		break;
 	case DTV_PANEL:
 		if (panel_info->dynamic_fps) {
-			frame_rate = panel_info->lcdc.frame_rate;
+			frame_rate = panel_info->lcdc.frame_rate / 1000;
+			if (panel_info->lcdc.frame_rate % 1000)
+				frame_rate += 1;
 			break;
 		}
 	default:
@@ -840,7 +840,7 @@ static inline u32 mdss_panel_get_framerate(struct mdss_panel_info *panel_info,
 			  panel_info->lcdc.v_pulse_width +
 			  panel_info->yres);
 		if (pixel_total) {
-			rate = panel_info->clk_rate * KHZ_TO_HZ;
+			rate = panel_info->clk_rate;
 			do_div(rate, pixel_total);
 			frame_rate = (u32)rate;
 		} else {
@@ -848,15 +848,6 @@ static inline u32 mdss_panel_get_framerate(struct mdss_panel_info *panel_info,
 		}
 		break;
 	}
-end:
-	if (flags == FPS_RESOLUTION_KHZ) {
-		if (!(frame_rate / KHZ_TO_HZ))
-			frame_rate *= KHZ_TO_HZ;
-	} else if (flags == FPS_RESOLUTION_HZ) {
-		if (frame_rate / KHZ_TO_HZ)
-			frame_rate /= KHZ_TO_HZ;
-	}
-
 	return frame_rate;
 }
 
