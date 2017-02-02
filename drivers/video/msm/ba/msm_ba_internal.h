@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -44,7 +44,6 @@
 
 enum ba_dev_state {
 	BA_DEV_UNINIT = 0,
-	BA_DEV_LOADED,
 	BA_DEV_INIT,
 	BA_DEV_INIT_DONE,
 	BA_DEV_INVALID
@@ -67,8 +66,11 @@ enum instance_state {
 };
 
 struct ba_ctxt {
+
 	struct mutex ba_cs;
+
 	struct msm_ba_dev *dev_ctxt;
+
 	struct dentry *debugfs_root;
 };
 
@@ -109,20 +111,14 @@ enum msm_ba_ip_type {
 	BA_INPUT_MAX = 0xffffffff
 };
 
-enum msm_ba_input_usr_type {
-	BA_INPUT_USERTYPE_KERNEL = 0,
-	BA_INPUT_USERTYPE_USER,
-	BA_INPUT_USERTYPE_MAX = 0xffffffff
-};
-
 struct msm_ba_input_config {
-	enum msm_ba_ip_type input_type;
+	enum msm_ba_ip_type inputType;
+	unsigned int index;
 	const char *name;
 	int ba_ip;
 	int ba_out;
 	const char *sd_name;
-	int ba_node;
-	enum msm_ba_input_usr_type input_user_type;
+	int signal_status;
 };
 
 struct msm_ba_sd_event {
@@ -132,7 +128,7 @@ struct msm_ba_sd_event {
 
 struct msm_ba_input {
 	struct list_head list;
-	enum msm_ba_ip_type input_type;
+	enum msm_ba_ip_type inputType;
 	unsigned int name_index;
 	char name[32];
 	int bridge_chip_ip;
@@ -144,7 +140,6 @@ struct msm_ba_input {
 	int in_use;
 	int ba_out_in_use;
 	enum v4l2_priority prio;
-	enum msm_ba_input_usr_type input_user_type;
 };
 
 struct msm_ba_dev {
@@ -166,10 +161,6 @@ struct msm_ba_dev {
 	uint32_t num_ba_subdevs;
 	struct list_head sd_events;
 	struct delayed_work sd_events_work;
-
-	/* BA input config list */
-	struct msm_ba_input_config *msm_ba_inp_cfg;
-	uint32_t num_config_inputs;
 
 	struct dentry *debugfs_root;
 };

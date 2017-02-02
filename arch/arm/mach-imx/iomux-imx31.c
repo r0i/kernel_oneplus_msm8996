@@ -44,11 +44,9 @@ static unsigned long mxc_pin_alloc_map[NB_PORTS * 32 / BITS_PER_LONG];
 /*
  * set the mode for a IOMUX pin.
  */
-void mxc_iomux_mode(unsigned int pin_mode)
+int mxc_iomux_mode(unsigned int pin_mode)
 {
-	u32 field;
-	u32 l;
-	u32 mode;
+	u32 field, l, mode, ret = 0;
 	void __iomem *reg;
 
 	reg = IOMUXSW_MUX_CTL + (pin_mode & IOMUX_REG_MASK);
@@ -63,6 +61,8 @@ void mxc_iomux_mode(unsigned int pin_mode)
 	__raw_writel(l, reg);
 
 	spin_unlock(&gpio_mux_lock);
+
+	return ret;
 }
 
 /*

@@ -22,11 +22,10 @@
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
-#include <linux/pm_runtime.h>
+#include <linux/clk.h>
 #include <linux/seq_file.h>
 #include <linux/coresight.h>
 #include <linux/amba/bus.h>
-#include <linux/clk.h>
 
 #include "coresight-priv.h"
 
@@ -67,9 +66,9 @@
  * struct etb_drvdata - specifics associated to an ETB component
  * @base:	memory mapped base address for this component.
  * @dev:	the device entity associated to this component.
- * @atclk:	optional clock for the core parts of the ETB.
  * @csdev:	component vitals needed by the framework.
  * @miscdev:	specifics to handle "/dev/xyz.etb" entry.
+ * @clk:	the clock this component is associated to.
  * @spinlock:	only one at a time pls.
  * @in_use:	synchronise user space access to etb buffer.
  * @buf:	area of memory where ETB buffer content gets sent.
@@ -80,9 +79,9 @@
 struct etb_drvdata {
 	void __iomem		*base;
 	struct device		*dev;
-	struct clk		*atclk;
 	struct coresight_device	*csdev;
 	struct miscdevice	miscdev;
+	struct clk		*clk;
 	spinlock_t		spinlock;
 	atomic_t		in_use;
 	u8			*buf;
@@ -93,14 +92,17 @@ struct etb_drvdata {
 
 static unsigned int etb_get_buffer_depth(struct etb_drvdata *drvdata)
 {
+	int ret;
 	u32 depth = 0;
 
-	pm_runtime_get_sync(drvdata->dev);
+	ret = clk_prepare_enable(drvdata->clk);
+	if (ret)
+		return ret;
 
 	/* RO registers don't need locking */
 	depth = readl_relaxed(drvdata->base + ETB_RAM_DEPTH_REG);
 
-	pm_runtime_put(drvdata->dev);
+	clk_disable_unprepare(drvdata->clk);
 	return depth;
 }
 
@@ -135,9 +137,12 @@ static void etb_enable_hw(struct etb_drvdata *drvdata)
 static int etb_enable(struct coresight_device *csdev)
 {
 	struct etb_drvdata *drvdata = dev_get_drvdata(csdev->dev.parent);
+	int ret;
 	unsigned long flags;
 
-	pm_runtime_get_sync(drvdata->dev);
+	ret = clk_prepare_enable(drvdata->clk);
+	if (ret)
+		return ret;
 
 	spin_lock_irqsave(&drvdata->spinlock, flags);
 	etb_enable_hw(drvdata);
@@ -247,7 +252,7 @@ static void etb_disable(struct coresight_device *csdev)
 	drvdata->enable = false;
 	spin_unlock_irqrestore(&drvdata->spinlock, flags);
 
-	pm_runtime_put(drvdata->dev);
+	clk_disable_unprepare(drvdata->clk);
 
 	dev_info(drvdata->dev, "ETB disabled\n");
 }
@@ -334,12 +339,16 @@ static const struct file_operations etb_fops = {
 static ssize_t status_show(struct device *dev,
 			   struct device_attribute *attr, char *buf)
 {
+	int ret;
 	unsigned long flags;
 	u32 etb_rdr, etb_sr, etb_rrp, etb_rwp;
 	u32 etb_trg, etb_cr, etb_ffsr, etb_ffcr;
 	struct etb_drvdata *drvdata = dev_get_drvdata(dev->parent);
 
-	pm_runtime_get_sync(drvdata->dev);
+	ret = clk_prepare_enable(drvdata->clk);
+	if (ret)
+		goto out;
+
 	spin_lock_irqsave(&drvdata->spinlock, flags);
 	CS_UNLOCK(drvdata->base);
 
@@ -355,7 +364,7 @@ static ssize_t status_show(struct device *dev,
 	CS_LOCK(drvdata->base);
 	spin_unlock_irqrestore(&drvdata->spinlock, flags);
 
-	pm_runtime_put(drvdata->dev);
+	clk_disable_unprepare(drvdata->clk);
 
 	return sprintf(buf,
 		       "Depth:\t\t0x%x\n"
@@ -368,7 +377,7 @@ static ssize_t status_show(struct device *dev,
 		       "Flush ctrl:\t0x%x\n",
 		       etb_rdr, etb_sr, etb_rrp, etb_rwp,
 		       etb_trg, etb_cr, etb_ffsr, etb_ffcr);
-
+out:
 	return -EINVAL;
 }
 static DEVICE_ATTR_RO(status);
@@ -429,12 +438,6 @@ static int etb_probe(struct amba_device *adev, const struct amba_id *id)
 		return -ENOMEM;
 
 	drvdata->dev = &adev->dev;
-	drvdata->atclk = devm_clk_get(&adev->dev, "atclk"); /* optional */
-	if (!IS_ERR(drvdata->atclk)) {
-		ret = clk_prepare_enable(drvdata->atclk);
-		if (ret)
-			return ret;
-	}
 	dev_set_drvdata(dev, drvdata);
 
 	/* validity for the resource is already checked by the AMBA core */
@@ -446,19 +449,21 @@ static int etb_probe(struct amba_device *adev, const struct amba_id *id)
 
 	spin_lock_init(&drvdata->spinlock);
 
-	drvdata->buffer_depth = etb_get_buffer_depth(drvdata);
-	pm_runtime_put(&adev->dev);
+	drvdata->clk = adev->pclk;
+	ret = clk_prepare_enable(drvdata->clk);
+	if (ret)
+		return ret;
 
-	if (drvdata->buffer_depth & 0x80000000)
+	drvdata->buffer_depth = etb_get_buffer_depth(drvdata);
+	clk_disable_unprepare(drvdata->clk);
+
+	if (drvdata->buffer_depth < 0)
 		return -EINVAL;
 
 	drvdata->buf = devm_kzalloc(dev,
 				    drvdata->buffer_depth * 4, GFP_KERNEL);
-	if (!drvdata->buf) {
-		dev_err(dev, "Failed to allocate %u bytes for buffer data\n",
-			drvdata->buffer_depth * 4);
+	if (!drvdata->buf)
 		return -ENOMEM;
-	}
 
 	desc = devm_kzalloc(dev, sizeof(*desc), GFP_KERNEL);
 	if (!desc)
@@ -498,32 +503,6 @@ static int etb_remove(struct amba_device *adev)
 	return 0;
 }
 
-#ifdef CONFIG_PM
-static int etb_runtime_suspend(struct device *dev)
-{
-	struct etb_drvdata *drvdata = dev_get_drvdata(dev);
-
-	if (drvdata && !IS_ERR(drvdata->atclk))
-		clk_disable_unprepare(drvdata->atclk);
-
-	return 0;
-}
-
-static int etb_runtime_resume(struct device *dev)
-{
-	struct etb_drvdata *drvdata = dev_get_drvdata(dev);
-
-	if (drvdata && !IS_ERR(drvdata->atclk))
-		clk_prepare_enable(drvdata->atclk);
-
-	return 0;
-}
-#endif
-
-static const struct dev_pm_ops etb_dev_pm_ops = {
-	SET_RUNTIME_PM_OPS(etb_runtime_suspend, etb_runtime_resume, NULL)
-};
-
 static struct amba_id etb_ids[] = {
 	{
 		.id	= 0x0003b907,
@@ -536,8 +515,6 @@ static struct amba_driver etb_driver = {
 	.drv = {
 		.name	= "coresight-etb10",
 		.owner	= THIS_MODULE,
-		.pm	= &etb_dev_pm_ops,
-
 	},
 	.probe		= etb_probe,
 	.remove		= etb_remove,

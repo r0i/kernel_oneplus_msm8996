@@ -183,6 +183,7 @@ static struct platform_driver kirkwood_cpufreq_platform_driver = {
 	.remove = kirkwood_cpufreq_remove,
 	.driver = {
 		.name = "kirkwood-cpufreq",
+		.owner = THIS_MODULE,
 	},
 };
 

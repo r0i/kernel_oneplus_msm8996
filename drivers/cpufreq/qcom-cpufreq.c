@@ -28,17 +28,7 @@
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <trace/events/power.h>
-#include <soc/qcom/socinfo.h>
 
-// AP: Default startup frequencies
-#define CONFIG_CPU_FREQ_MIN_CLUSTER1	307200
-#define CONFIG_CPU_FREQ_MAX_CLUSTER1	1593600
-#define CONFIG_CPU_FREQ_MIN_CLUSTER2	307200
-#define CONFIG_CPU_FREQ_MAX_CLUSTER2	2150400
-#define CONFIG_CPU_FREQ_MAX_CLUSTER2PRO	2342400
-
-#define LITTLE_CPU_NUM 0
-#define BIG_CPU_NUM 2
 static DEFINE_MUTEX(l2bw_lock);
 
 static struct clk *cpu_clk[NR_CPUS];
@@ -104,15 +94,6 @@ static int msm_cpufreq_target(struct cpufreq_policy *policy,
 		ret = -ENODEV;
 		goto done;
 	}
-
-	if (policy->cpu >= BIG_CPU_NUM) {
-		target_freq = max((unsigned int)pm_qos_request(PM_QOS_BIG_CPU_FREQ_MIN), target_freq);
-                target_freq = min((unsigned int)pm_qos_request(PM_QOS_BIG_CPU_FREQ_MAX), target_freq);
-	 } else {
-                target_freq = max((unsigned int)pm_qos_request(PM_QOS_LITTLE_CPU_FREQ_MIN), target_freq);
-                target_freq = min((unsigned int)pm_qos_request(PM_QOS_LITTLE_CPU_FREQ_MAX), target_freq);
-        }
-
 	if (cpufreq_frequency_table_target(policy, table, target_freq, relation,
 			&index)) {
 		pr_err("cpufreq: invalid target_freq: %d\n", target_freq);
@@ -124,11 +105,8 @@ static int msm_cpufreq_target(struct cpufreq_policy *policy,
 		policy->cpu, target_freq, relation,
 		policy->min, policy->max, table[index].frequency);
 
-	ret = set_cpu_freq(policy, target_freq,
+	ret = set_cpu_freq(policy, table[index].frequency,
 			   table[index].driver_data);
-
-	/* save current frequency */
-	policy->cur = target_freq;
 done:
 	mutex_unlock(&per_cpu(suspend_data, policy->cpu).suspend_mutex);
 	return ret;
@@ -166,41 +144,7 @@ static int msm_cpufreq_init(struct cpufreq_policy *policy)
 			cpumask_set_cpu(cpu, policy->cpus);
 
 	if (cpufreq_frequency_table_cpuinfo(policy, table))
-	{
-		// AP: set default frequencies to prevent overclocking or underclocking during start
-		if (policy->cpu <= 1)
-		{
-			policy->cpuinfo.min_freq = CONFIG_CPU_FREQ_MIN_CLUSTER1;
-			policy->cpuinfo.max_freq = CONFIG_CPU_FREQ_MAX_CLUSTER1;
-		}
-
-		if (policy->cpu >= 2)
-		{
-			policy->cpuinfo.min_freq = CONFIG_CPU_FREQ_MIN_CLUSTER2;
-			if (socinfo_get_id() == 305)
-				policy->cpuinfo.max_freq = CONFIG_CPU_FREQ_MAX_CLUSTER2PRO;
-			else
-				policy->cpuinfo.max_freq = CONFIG_CPU_FREQ_MAX_CLUSTER2;
-		}
-
 		pr_err("cpufreq: failed to get policy min/max\n");
-	}
-
-	// AP: set default frequencies to prevent overclocking or underclocking during start
-	if (policy->cpu <= 1)
-	{
-		policy->min = CONFIG_CPU_FREQ_MIN_CLUSTER1;
-		policy->max = CONFIG_CPU_FREQ_MAX_CLUSTER1;
-	}
-
-	if (policy->cpu >= 2)
-	{
-		policy->min = CONFIG_CPU_FREQ_MIN_CLUSTER2;
-		if (socinfo_get_id() == 305)
-			policy->max = CONFIG_CPU_FREQ_MAX_CLUSTER2PRO;
-		else
-			policy->max = CONFIG_CPU_FREQ_MAX_CLUSTER2;
-	}
 
 	cur_freq = clk_get_rate(cpu_clk[policy->cpu])/1000;
 
@@ -355,219 +299,6 @@ static struct notifier_block msm_cpufreq_pm_notifier = {
 	.notifier_call = msm_cpufreq_pm_event,
 };
 
-
-static void msm_qos_nop(void *info)
-{
-}
-
-static int msm_little_cpu_max_qos_handler(struct notifier_block *b, unsigned long val, void *v)
-{
-        int ret;
-        unsigned long freq;
-        struct cpufreq_policy *policy;
-        int cpu = LITTLE_CPU_NUM;
-
-        policy = cpufreq_cpu_get(cpu);
-
-        if (!policy)
-                goto bad;
-
-        if (!policy->user_policy.governor) {
-                cpufreq_cpu_put(policy);
-                goto bad;
-        }
-
-        freq = policy->cur;  // Read the current frequency of cpu
-
-        if (freq <= val) {
-		cpufreq_cpu_put(policy);
-                goto good;
-	}
-
-#if defined(CONFIG_CPU_FREQ_GOV_USERSPACE) || defined(CONFIG_CPU_FREQ_GOV_PERFORMANCE)
-        if ((strcmp(policy->governor->name, "userspace") == 0)
-                        || strcmp(policy->governor->name, "performance") == 0) {
-                cpufreq_cpu_put(policy);
-                goto good;
-        }
-#endif
-
-        smp_call_function_single(cpu, msm_qos_nop, NULL, 0);
-
-        ret = __cpufreq_driver_target(policy, val, CPUFREQ_RELATION_H);
-
-        cpufreq_cpu_put(policy);
-
-        if (ret < 0)
-                goto bad;
-
-good:
-        return NOTIFY_OK;
-bad:
-        return NOTIFY_BAD;
-}
-
-static struct notifier_block msm_little_cpu_max_qos_notifier = {
-        .notifier_call = msm_little_cpu_max_qos_handler,
-        .priority = INT_MAX,
-};
-
-static int msm_little_cpu_min_qos_handler(struct notifier_block *b, unsigned long val, void *v)
-{
-        int ret;
-        unsigned long freq;
-        struct cpufreq_policy *policy;
-        int cpu = LITTLE_CPU_NUM;
-
-        policy = cpufreq_cpu_get(cpu);
-
-        if (!policy)
-                goto bad;
-
-        if (!policy->user_policy.governor) {
-                cpufreq_cpu_put(policy);
-                goto bad;
-        }
-
-	freq = policy->cur;  // Read the current frequency of cpu
-
-	if (freq >= val) {
-		cpufreq_cpu_put(policy);
-                goto good;
-	}
-
-#if defined(CONFIG_CPU_FREQ_GOV_USERSPACE) || defined(CONFIG_CPU_FREQ_GOV_PERFORMANCE)
-        if ((strcmp(policy->governor->name, "userspace") == 0)
-                        || strcmp(policy->governor->name, "performance") == 0) {
-                cpufreq_cpu_put(policy);
-                goto good;
-        }
-#endif
-
-        smp_call_function_single(cpu, msm_qos_nop, NULL, 0);
-
-        ret = __cpufreq_driver_target(policy, val, CPUFREQ_RELATION_H);
-
-        cpufreq_cpu_put(policy);
-
-        if (ret < 0)
-                goto bad;
-
-good:
-        return NOTIFY_OK;
-bad:
-        return NOTIFY_BAD;
-}
-
-static struct notifier_block msm_little_cpu_min_qos_notifier = {
-        .notifier_call = msm_little_cpu_min_qos_handler,
-        .priority = INT_MAX,
-};
-
-static int msm_big_cpu_min_qos_handler(struct notifier_block *b, unsigned long val, void *v)
-{
-        int ret;
-        unsigned long freq;
-        struct cpufreq_policy *policy;
-        int cpu = BIG_CPU_NUM;
-
-        policy = cpufreq_cpu_get(cpu);
-
-        if (!policy)
-                goto bad;
-
-        if (!policy->user_policy.governor) {
-                cpufreq_cpu_put(policy);
-                goto bad;
-        }
-
-        freq = policy->cur;  // Read the current frequency of cpu
-
-        if (freq >= val) {
-		cpufreq_cpu_put(policy);
-		goto good;
-	}
-
-#if defined(CONFIG_CPU_FREQ_GOV_USERSPACE) || defined(CONFIG_CPU_FREQ_GOV_PERFORMANCE)
-        if ((strcmp(policy->governor->name, "userspace") == 0)
-                        || strcmp(policy->governor->name, "performance") == 0) {
-                cpufreq_cpu_put(policy);
-                goto good;
-        }
-#endif
-
-        smp_call_function_single(cpu, msm_qos_nop, NULL, 0);
-
-        ret = __cpufreq_driver_target(policy, val, CPUFREQ_RELATION_H);
-
-        cpufreq_cpu_put(policy);
-
-        if (ret < 0)
-                goto bad;
-
-good:
-        return NOTIFY_OK;
-bad:
-        return NOTIFY_BAD;
-}
-
-static struct notifier_block msm_big_cpu_min_qos_notifier = {
-        .notifier_call = msm_big_cpu_min_qos_handler,
-        .priority = INT_MAX,
-};
-
-static int msm_big_cpu_max_qos_handler(struct notifier_block *b, unsigned long val, void *v)
-{
-        int ret;
-        unsigned long freq;
-        struct cpufreq_policy *policy;
-        int cpu = BIG_CPU_NUM;
-
-        policy = cpufreq_cpu_get(cpu);
-
-        if (!policy)
-                goto bad;
-
-        if (!policy->user_policy.governor) {
-                cpufreq_cpu_put(policy);
-                goto bad;
-        }
-
-        freq = policy->cur;  // Read the current frequency of cpu
-
-        if (freq <= val) {
-		cpufreq_cpu_put(policy);
-                goto good;
-	}
-
-#if defined(CONFIG_CPU_FREQ_GOV_USERSPACE) || defined(CONFIG_CPU_FREQ_GOV_PERFORMANCE)
-        if ((strcmp(policy->governor->name, "userspace") == 0)
-                        || strcmp(policy->governor->name, "performance") == 0) {
-                cpufreq_cpu_put(policy);
-                goto good;
-        }
-#endif
-
-        smp_call_function_single(cpu, msm_qos_nop, NULL, 0);
-
-        ret = __cpufreq_driver_target(policy, val, CPUFREQ_RELATION_H);
-
-        cpufreq_cpu_put(policy);
-
-        if (ret < 0)
-                goto bad;
-
-good:
-        return NOTIFY_OK;
-bad:
-        return NOTIFY_BAD;
-}
-
-static struct notifier_block msm_big_cpu_max_qos_notifier = {
-        .notifier_call = msm_big_cpu_max_qos_handler,
-        .priority = INT_MAX,
-};
-
 static struct freq_attr *msm_freq_attr[] = {
 	&cpufreq_freq_attr_scaling_available_freqs,
 	NULL,
@@ -720,11 +451,6 @@ static int __init msm_cpufreq_probe(struct platform_device *pdev)
 		per_cpu(freq_table, cpu) = ftbl;
 	}
 
-	pm_qos_add_notifier(PM_QOS_LITTLE_CPU_FREQ_MIN, &msm_little_cpu_min_qos_notifier);
-	pm_qos_add_notifier(PM_QOS_LITTLE_CPU_FREQ_MAX, &msm_little_cpu_max_qos_notifier);
-	pm_qos_add_notifier(PM_QOS_BIG_CPU_FREQ_MIN, &msm_big_cpu_min_qos_notifier);
-	pm_qos_add_notifier(PM_QOS_BIG_CPU_FREQ_MAX, &msm_big_cpu_max_qos_notifier);
-
 	return 0;
 }
 
@@ -760,6 +486,7 @@ static int __init msm_cpufreq_register(void)
 					suspend_mutex));
 		return rc;
 	}
+
 	register_pm_notifier(&msm_cpufreq_pm_notifier);
 	return cpufreq_register_driver(&msm_cpufreq_driver);
 }

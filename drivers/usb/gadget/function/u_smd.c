@@ -548,9 +548,6 @@ static void gsmd_stop_io(struct gsmd_port *port)
 		gsmd_free_requests(in, &port->write_pool);
 		port->n_read = 0;
 		port->cbits_to_laptop = 0;
-	} else {
-		spin_unlock(&port->port_lock);
-		return;
 	}
 
 	if (port->port_usb->send_modem_ctrl_bits)
@@ -720,7 +717,6 @@ int gsmd_connect(struct gserial *gser, u8 portno)
 	gser->notify_modem = gsmd_notify_modem;
 	port->nbytes_tomodem = 0;
 	port->nbytes_tolaptop = 0;
-	port->is_suspended = false;
 	spin_unlock_irqrestore(&port->port_lock, flags);
 
 	ret = usb_ep_enable(gser->in);
@@ -768,7 +764,6 @@ void gsmd_disconnect(struct gserial *gser, u8 portno)
 
 	spin_lock_irqsave(&port->port_lock, flags);
 	port->port_usb = 0;
-	port->is_suspended = false;
 	spin_unlock_irqrestore(&port->port_lock, flags);
 
 	/* disable endpoints, aborting down any active I/O */

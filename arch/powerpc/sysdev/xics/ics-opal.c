@@ -73,7 +73,7 @@ static unsigned int ics_opal_startup(struct irq_data *d)
 	 * at that level, so we do it here by hand.
 	 */
 	if (d->msi_desc)
-		pci_msi_unmask_irq(d);
+		unmask_msi_irq(d);
 #endif
 
 	/* unmask it */

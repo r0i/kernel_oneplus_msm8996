@@ -69,6 +69,7 @@ static int clk_pllv3_prepare(struct clk_hw *hw)
 {
 	struct clk_pllv3 *pll = to_clk_pllv3(hw);
 	u32 val;
+	int ret;
 
 	val = readl_relaxed(pll->base);
 	if (pll->powerup_set)
@@ -77,7 +78,11 @@ static int clk_pllv3_prepare(struct clk_hw *hw)
 		val &= ~BM_PLL_POWER;
 	writel_relaxed(val, pll->base);
 
-	return clk_pllv3_wait_lock(pll);
+	ret = clk_pllv3_wait_lock(pll);
+	if (ret)
+		return ret;
+
+	return 0;
 }
 
 static void clk_pllv3_unprepare(struct clk_hw *hw)

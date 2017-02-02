@@ -148,7 +148,6 @@ enum dsi_pm_type {
 #define CTRL_STATE_PANEL_INIT		BIT(0)
 #define CTRL_STATE_MDP_ACTIVE		BIT(1)
 #define CTRL_STATE_DSI_ACTIVE		BIT(2)
-#define CTRL_STATE_PANEL_LP		BIT(3)
 
 #define DSI_NON_BURST_SYNCH_PULSE	0
 #define DSI_NON_BURST_SYNCH_EVENT	1
@@ -391,7 +390,6 @@ struct dsi_err_container {
 #define MDSS_DSI_COMMAND_COMPRESSION_MODE_CTRL	0x02a8
 #define MDSS_DSI_COMMAND_COMPRESSION_MODE_CTRL2	0x02ac
 #define MDSS_DSI_COMMAND_COMPRESSION_MODE_CTRL3	0x02b0
-#define MSM_DBA_CHIP_NAME_MAX_LEN				20
 
 struct mdss_dsi_ctrl_pdata {
 	int ndx;	/* panel_num */
@@ -468,11 +466,8 @@ struct mdss_dsi_ctrl_pdata {
 	struct dsi_panel_cmds post_panel_on_cmds;
 	struct dsi_panel_cmds off_cmds;
 	struct dsi_panel_cmds status_cmds;
-	u32 *status_valid_params;
-	u32 *status_cmds_rlen;
+	u32 status_cmds_rlen;
 	u32 *status_value;
-	unsigned char *return_buf;
-	u32 groups; /* several alternative values to compare */
 	u32 status_error_count;
 	u32 max_status_error_count;
 
@@ -530,47 +525,24 @@ struct mdss_dsi_ctrl_pdata {
 	void *mdp_clk_handle;
 	int m_dsi_vote_cnt;
 	int m_mdp_vote_cnt;
+	/* debugfs structure */
 	struct mdss_dsi_debugfs_info *debugfs_info;
-	int lcd_power_1v8_en; 
+	int lcd_power_1v8_en; //guozhiming modify for lcd 2015-10-15
 	int esd_te_gpio;
 	struct delayed_work techeck_work;
 	struct completion te_comp;
 	int acl_mode;
-	struct dsi_panel_cmds acl_cmds;
-	int acl_ncmds;
-	int acl_npayload;
 	struct dsi_err_container err_cont;
-	int  max_brightness_level;
-	char high_brightness_panel;
-	struct dsi_panel_cmds hbm_on_cmds;
-	struct dsi_panel_cmds hbm_off_cmds;
+    int  max_brightness_level;
+    char high_brightness_panel;
 
-	int  SRGB_mode;
-	int SRGB_first_on;
-	struct dsi_panel_cmds srgb_on_cmds;
-	struct dsi_panel_cmds srgb_off_cmds;
-
-		int  Adobe_RGB_mode;
-		int Adobe_RGB_first_on;
-		struct dsi_panel_cmds Adobe_RGB_on_cmds;
-		struct dsi_panel_cmds Adobe_RGB_off_cmds;
-
-		int  dci_p3_mode;
-		int dci_p3_first_on;
-		struct dsi_panel_cmds dci_p3_on_cmds;
-		struct dsi_panel_cmds dci_p3_off_cmds;
-
+	bool ds_registered;
 
 	struct kobject *kobj;
 	int fb_node;
 
-	/* DBA data */
 	struct workqueue_struct *workq;
 	struct delayed_work dba_work;
-	char bridge_name[MSM_DBA_CHIP_NAME_MAX_LEN];
-	uint32_t bridge_index;
-	bool ds_registered;
-
 	bool timing_db_mode;
 	bool update_phy_timing; /* flag to recalculate PHY timings */
 
@@ -691,17 +663,6 @@ void mdss_dsi_set_burst_mode(struct mdss_dsi_ctrl_pdata *ctrl);
 void mdss_dsi_set_reg(struct mdss_dsi_ctrl_pdata *ctrl, int off,
 	u32 mask, u32 val);
 int mdss_dsi_phy_pll_reset_status(struct mdss_dsi_ctrl_pdata *ctrl);
-int mdss_dsi_panel_set_acl(struct mdss_dsi_ctrl_pdata *ctrl, int mode);
-void mdss_dsi_panel_set_max_brightness(struct mdss_dsi_ctrl_pdata *ctrl, int level);
-int mdss_dsi_panel_get_max_brightness(struct mdss_dsi_ctrl_pdata *ctrl);
-int mdss_dsi_panel_set_srgb_mode(struct mdss_dsi_ctrl_pdata *ctrl, int level);
-int mdss_dsi_panel_get_srgb_mode(struct mdss_dsi_ctrl_pdata *ctrl);
-int mdss_dsi_panel_set_adobe_rgb_mode(struct mdss_dsi_ctrl_pdata *ctrl, int level);
-int mdss_dsi_panel_get_adobe_rgb_mode(struct mdss_dsi_ctrl_pdata *ctrl);
-int mdss_dsi_panel_set_dci_p3_mode(struct mdss_dsi_ctrl_pdata *ctrl, int level);
-int mdss_dsi_panel_get_dci_p3_mode(struct mdss_dsi_ctrl_pdata *ctrl);
-
-
 
 static inline const char *__mdss_dsi_pm_name(enum dsi_pm_type module)
 {

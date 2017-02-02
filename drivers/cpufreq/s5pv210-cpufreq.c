@@ -656,6 +656,7 @@ static int s5pv210_cpufreq_probe(struct platform_device *pdev)
 static struct platform_driver s5pv210_cpufreq_platdrv = {
 	.driver = {
 		.name	= "s5pv210-cpufreq",
+		.owner	= THIS_MODULE,
 	},
 	.probe = s5pv210_cpufreq_probe,
 };

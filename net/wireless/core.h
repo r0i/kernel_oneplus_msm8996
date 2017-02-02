@@ -61,7 +61,6 @@ struct cfg80211_registered_device {
 	struct list_head bss_list;
 	struct rb_root bss_tree;
 	u32 bss_generation;
-        u32 bss_entries;
 	struct cfg80211_scan_request *scan_req; /* protected by RTNL */
 	struct sk_buff *scan_msg;
 	struct cfg80211_sched_scan_request *sched_scan_req;
@@ -84,8 +83,6 @@ struct cfg80211_registered_device {
 	spinlock_t destroy_list_lock;
 	struct list_head destroy_list;
 	struct work_struct destroy_work;
-
-	struct work_struct sched_scan_stop_wk;
 
 	/* must be last because of the way we do wiphy_priv(),
 	 * and it should at least be aligned to NETDEV_ALIGN */

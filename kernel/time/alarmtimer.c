@@ -135,7 +135,6 @@ void set_power_on_alarm(void)
 	 * It is to make sure that alarm time will be always
 	 * bigger than wall time.
 	*/
-	printk("alarm  set_power_on_alarm time = %ld\n",alarm_secs);
 	if (alarm_secs <= wall_time.tv_sec + 1)
 		goto disable_alarm;
 
@@ -1025,7 +1024,7 @@ static int alarm_timer_nsleep(const clockid_t which_clock, int flags,
 			goto out;
 	}
 
-	restart = &current_thread_info()->restart_block;
+	restart = &current->restart_block;
 	restart->fn = alarm_timer_nsleep_restart;
 	restart->nanosleep.clockid = type;
 	restart->nanosleep.expires = exp.tv64;

@@ -88,7 +88,7 @@ static void __init kasan_map_early_shadow(void)
 	} while (pgd++, addr = next, addr != end);
 }
 
-asmlinkage void __init kasan_early_init(void)
+void __init kasan_early_init(void)
 {
 	BUILD_BUG_ON(KASAN_SHADOW_OFFSET != KASAN_SHADOW_END - (1UL << 61));
 	BUILD_BUG_ON(!IS_ALIGNED(KASAN_SHADOW_START, PGDIR_SIZE));

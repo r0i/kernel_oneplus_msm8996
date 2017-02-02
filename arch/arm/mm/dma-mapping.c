@@ -791,15 +791,13 @@ static void *arm_dma_remap(struct device *dev, void *cpu_addr,
 			dma_addr_t handle, size_t size,
 			struct dma_attrs *attrs)
 {
-	void *ptr;
 	struct page *page = pfn_to_page(dma_to_pfn(dev, handle));
 	pgprot_t prot = __get_dma_pgprot(attrs, PAGE_KERNEL);
 	unsigned long offset = handle & ~PAGE_MASK;
 
 	size = PAGE_ALIGN(size + offset);
-	ptr = __dma_alloc_remap(page, size, GFP_KERNEL, prot,
-				__builtin_return_address(0));
-	return ptr ? ptr + offset : ptr;
+	return __dma_alloc_remap(page, size, GFP_KERNEL, prot,
+				__builtin_return_address(0)) + offset;
 }
 
 static void arm_dma_unremap(struct device *dev, void *remapped_addr,
@@ -819,7 +817,7 @@ static void arm_dma_unremap(struct device *dev, void *remapped_addr,
 
 	vunmap(remapped_addr);
 	flush_tlb_kernel_range((unsigned long)remapped_addr,
-			(unsigned long)(remapped_addr + size));
+				(unsigned long)(remapped_addr + size));
 }
 /*
  * Free a buffer as defined by the above mapping.
@@ -1215,8 +1213,8 @@ static struct page **__iommu_alloc_buffer(struct device *dev, size_t size,
 					  gfp_t gfp, struct dma_attrs *attrs)
 {
 	struct page **pages;
-	size_t count = size >> PAGE_SHIFT;
-	size_t array_size = count * sizeof(struct page *);
+	int count = size >> PAGE_SHIFT;
+	int array_size = count * sizeof(struct page *);
 	int i = 0;
 
 	if (array_size <= PAGE_SIZE)

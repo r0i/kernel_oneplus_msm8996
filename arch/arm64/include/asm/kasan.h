@@ -5,7 +5,6 @@
 
 #ifdef CONFIG_KASAN
 
-#include <linux/linkage.h>
 #include <asm/memory.h>
 
 /*
@@ -28,7 +27,6 @@
 #define KASAN_SHADOW_OFFSET     (KASAN_SHADOW_END - (1ULL << (64 - 3)))
 
 void kasan_init(void);
-asmlinkage void kasan_early_init(void);
 
 #else
 static inline void kasan_init(void) { }

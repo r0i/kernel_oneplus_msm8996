@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -687,8 +687,7 @@ static int sendcmd(struct adreno_device *adreno_dev,
 	 * we just submitted something, readjust ringbuffer
 	 * execution level
 	 */
-	if (gpudev->preemption_schedule)
-		gpudev->preemption_schedule(adreno_dev);
+	gpudev->preemption_schedule(adreno_dev);
 	return 0;
 }
 
@@ -2096,7 +2095,7 @@ static void _dispatcher_power_down(struct adreno_device *adreno_dev)
 	mutex_unlock(&device->mutex);
 }
 
-static void adreno_dispatcher_work(struct kthread_work *work)
+static void adreno_dispatcher_work(struct work_struct *work)
 {
 	struct adreno_dispatcher *dispatcher =
 		container_of(work, struct adreno_dispatcher, work);
@@ -2123,17 +2122,18 @@ static void adreno_dispatcher_work(struct kthread_work *work)
 			break;
 	}
 
-	kgsl_process_event_groups(device);
-
 	/*
 	 * dispatcher_do_fault() returns 0 if no faults occurred. If that is the
 	 * case, then clean up preemption and try to schedule more work
 	 */
 	if (dispatcher_do_fault(adreno_dev) == 0) {
-
 		/* Clean up after preemption */
 		if (gpudev->preemption_schedule)
 			gpudev->preemption_schedule(adreno_dev);
+
+		/* Re-kick the event engine to catch stragglers */
+		if (dispatcher->inflight == 0 && count != 0)
+			kgsl_schedule_work(&device->event_work);
 
 		/* Run the scheduler for to dispatch new commands */
 		_adreno_dispatcher_issuecmds(adreno_dev);
@@ -2156,7 +2156,7 @@ void adreno_dispatcher_schedule(struct kgsl_device *device)
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	struct adreno_dispatcher *dispatcher = &adreno_dev->dispatcher;
 
-	queue_kthread_work(&kgsl_driver.worker, &dispatcher->work);
+	kgsl_schedule_work(&dispatcher->work);
 }
 
 /**
@@ -2438,7 +2438,7 @@ int adreno_dispatcher_init(struct adreno_device *adreno_dev)
 	setup_timer(&dispatcher->fault_timer, adreno_dispatcher_fault_timer,
 		(unsigned long) adreno_dev);
 
-	init_kthread_work(&dispatcher->work, adreno_dispatcher_work);
+	INIT_WORK(&dispatcher->work, adreno_dispatcher_work);
 
 	init_completion(&dispatcher->idle_gate);
 	complete_all(&dispatcher->idle_gate);

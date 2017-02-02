@@ -222,8 +222,7 @@ void iic_request_IPIs(void)
 #endif /* CONFIG_SMP */
 
 
-static int iic_host_match(struct irq_domain *h, struct device_node *node,
-			  enum irq_domain_bus_token bus_token)
+static int iic_host_match(struct irq_domain *h, struct device_node *node)
 {
 	return of_device_is_compatible(node,
 				    "IBM,CBEA-Internal-Interrupt-Controller");

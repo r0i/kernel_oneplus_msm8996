@@ -50,8 +50,6 @@
 
 #include <asm/uaccess.h>
 
-#include "../printk_interface.h"
-
 #define CREATE_TRACE_POINTS
 #include <trace/events/printk.h>
 
@@ -298,9 +296,6 @@ static u32 __log_align __used = LOG_ALIGN;
 #else
 #define LOG_MAGIC(msg)
 #endif
-
-static unsigned int user_log_level = 2;
-module_param(user_log_level, uint, S_IRUGO | S_IWUSR);
 
 /* human readable text of the record */
 static char *log_text(const struct printk_log *msg)
@@ -577,11 +572,6 @@ static ssize_t devkmsg_write(struct kiocb *iocb, struct iov_iter *from)
 		i = simple_strtoul(line+1, &endp, 10);
 		if (endp && endp[0] == '>') {
 			level = i & 7;
-			if (level > user_log_level) {
-				ret = 0;
-				goto out;
-			}
-
 			if (i >> 3)
 				facility = i >> 3;
 			endp++;
@@ -591,8 +581,6 @@ static ssize_t devkmsg_write(struct kiocb *iocb, struct iov_iter *from)
 	}
 
 	printk_emit(facility, level, NULL, 0, "%s", line);
-
-out:
 	kfree(buf);
 	return ret;
 }
@@ -1036,7 +1024,7 @@ static inline void boot_delay_msec(int level)
 static bool printk_time = IS_ENABLED(CONFIG_PRINTK_TIME);
 module_param_named(time, printk_time, bool, S_IRUGO | S_IWUSR);
 
-static bool print_wall_time = 1;
+static bool print_wall_time = 0;
 module_param_named(print_wall_time, print_wall_time, bool, S_IRUGO | S_IWUSR);
 
 
@@ -1736,14 +1724,17 @@ asmlinkage int vprintk_emit(int facility, int level,
 	}
 
 	if (last_new_line) {
-		if (print_wall_time && ts_sec >= 20) {
+		if (!print_wall_time && ts_sec >= 20) {
+			print_wall_time = 1;
+		}
+		if (print_wall_time) {
 		    struct timespec64 tspec;
 		    struct rtc_time tm;
 			extern struct timezone sys_tz;
 
 			__getnstimeofday64(&tspec);
-			if (sys_tz.tz_minuteswest < 0 || (tspec.tv_sec - sys_tz.tz_minuteswest*60) >= 0)
-				tspec.tv_sec -= sys_tz.tz_minuteswest * 60;
+			/*utc + timezone add by huoyinghui@160425*/
+			tspec.tv_sec -= sys_tz.tz_minuteswest * 60;
 			rtc_time_to_tm(tspec.tv_sec, &tm);
 
 			text_len = scnprintf(texttmp, sizeof(texttmp), "[%02d%02d%02d_%02d:%02d:%02d.%06ld]@%d %s",
@@ -1855,10 +1846,6 @@ EXPORT_SYMBOL(vprintk_emit);
 
 asmlinkage int vprintk(const char *fmt, va_list args)
 {
-	// if printk mode is disabled, terminate instantly
-	if (printk_mode == 0)
-			return 0;
-
 	return vprintk_emit(0, -1, NULL, 0, fmt, args);
 }
 EXPORT_SYMBOL(vprintk);
@@ -1903,10 +1890,6 @@ asmlinkage __visible int printk(const char *fmt, ...)
 {
 	va_list args;
 	int r;
-
-	// if printk mode is disabled, terminate instantly
-	if (printk_mode == 0)
-		return 0;
 
 #ifdef CONFIG_KGDB_KDB
 	if (unlikely(kdb_trap_printk)) {

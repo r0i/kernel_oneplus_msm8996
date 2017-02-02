@@ -5891,11 +5891,14 @@ static int cpr3_panic_callback(struct notifier_block *nfb,
 				struct cpr3_controller, panic_notifier);
 	struct cpr3_panic_regs_info *regs_info = ctrl->panic_regs_info;
 	struct cpr3_reg_info *reg;
+	void __iomem *virt_addr;
 	int i = 0;
 
 	for (i = 0; i < regs_info->reg_count; i++) {
 		reg = &(regs_info->regs[i]);
-		reg->value = readl_relaxed(reg->virt_addr);
+		virt_addr = ioremap(reg->addr, 0x4);
+		reg->value = readl_relaxed(virt_addr);
+		iounmap(virt_addr);
 		pr_err("%s[0x%08x] = 0x%08x\n", reg->name, reg->addr,
 			reg->value);
 	}
@@ -6096,12 +6099,11 @@ int cpr3_regulator_unregister(struct cpr3_controller *ctrl)
 	if (ctrl->irq && !cpumask_empty(&ctrl->irq_affinity_mask))
 		unregister_hotcpu_notifier(&ctrl->cpu_hotplug_notifier);
 
-	if (ctrl->ctrl_type == CPR_CTRL_TYPE_CPR4) {
+	if (ctrl->ctrl_type == CPR_CTRL_TYPE_CPR4)
 		rc = cpr3_ctrl_clear_cpr4_config(ctrl);
 		if (rc)
 			cpr3_err(ctrl, "failed to clear CPR4 configuration,rc=%d\n",
 				rc);
-	}
 
 	cpr3_ctrl_loop_disable(ctrl);
 

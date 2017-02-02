@@ -127,7 +127,7 @@ static void *alloc_insn_page(void)
 
 static void free_insn_page(void *page)
 {
-	module_memfree(page);
+	module_free(NULL, page);
 }
 
 struct kprobe_insn_cache kprobe_insn_slots = {

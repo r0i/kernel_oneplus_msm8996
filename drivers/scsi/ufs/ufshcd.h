@@ -421,7 +421,6 @@ struct ufs_clk_gating {
 	struct device_attribute enable_attr;
 	bool is_enabled;
 	int active_reqs;
-	struct workqueue_struct *ungating_workq;
 };
 
 /* Hibern8 state  */
@@ -808,7 +807,6 @@ struct ufs_hba {
 	u32 saved_uic_err;
 	u32 saved_ce_err;
 	bool silence_err_logs;
-	bool force_host_reset;
 
 	/* Device management request data */
 	struct ufs_dev_cmd dev_cmd;

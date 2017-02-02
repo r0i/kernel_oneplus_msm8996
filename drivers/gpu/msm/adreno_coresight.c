@@ -314,9 +314,8 @@ int adreno_coresight_init(struct adreno_device *adreno_dev)
 
 	desc.pdata = of_get_coresight_platform_data(&device->pdev->dev,
 			device->pdev->dev.of_node);
-	if (IS_ERR_OR_NULL(desc.pdata))
-		return (desc.pdata == NULL) ? -ENODEV :
-			PTR_ERR(desc.pdata);
+	if (desc.pdata == NULL)
+		return -ENODEV;
 
 	desc.type = CORESIGHT_DEV_TYPE_SOURCE;
 	desc.subtype.source_subtype = CORESIGHT_DEV_SUBTYPE_SOURCE_BUS;

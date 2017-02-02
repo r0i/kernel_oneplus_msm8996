@@ -1,5 +1,4 @@
-#include <linux/compiler.h>
-#include <linux/export.h>
+#include <linux/module.h>
 #include <linux/uaccess.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
@@ -13,8 +12,6 @@
 #define IS_UNALIGNED(src, dst)	\
 	(((long) dst | (long) src) & (sizeof(long) - 1))
 #endif
-
-#define CHECK_ALIGN(v, a) ((((unsigned long)(v)) & ((a) - 1)) == 0)
 
 /*
  * Do a strncpy, return length of string without final '\0'.
@@ -37,27 +34,12 @@ static inline long do_strncpy_from_user(char *dst, const char __user *src, long 
 	if (IS_UNALIGNED(src, dst))
 		goto byte_at_a_time;
 
-	/* Copy a byte at a time until we align to 8 bytes */
-	while (max && (!CHECK_ALIGN(src + res, 8))) {
-		char c;
-		int ret;
-
-		ret = __get_user(c, src + res);
-		if (ret)
-			return -EFAULT;
-		dst[res] = c;
-		if (!c)
-			return res;
-		res++;
-		max--;
-	}
-
 	while (max >= sizeof(unsigned long)) {
 		unsigned long c, data;
 
 		/* Fall back to byte-at-a-time if we get a page fault */
-		if (unlikely(__get_user(c,(unsigned long __user *)(src+res))))
-			break;
+		unsafe_get_user(c, (unsigned long __user *)(src+res), byte_at_a_time);
+
 		*(unsigned long *)(dst+res) = c;
 		if (has_zero(c, &data, &constants)) {
 			data = prep_zero_mask(c, data, &constants);
@@ -72,8 +54,7 @@ byte_at_a_time:
 	while (max) {
 		char c;
 
-		if (unlikely(__get_user(c,src+res)))
-			return -EFAULT;
+		unsafe_get_user(c,src+res, efault);
 		dst[res] = c;
 		if (!c)
 			return res;
@@ -92,6 +73,7 @@ byte_at_a_time:
 	 * Nope: we hit the address space limit, and we still had more
 	 * characters the caller would have wanted. That's an EFAULT.
 	 */
+efault:
 	return -EFAULT;
 }
 
@@ -124,7 +106,12 @@ long strncpy_from_user(char *dst, const char __user *src, long count)
 	src_addr = (unsigned long)src;
 	if (likely(src_addr < max_addr)) {
 		unsigned long max = max_addr - src_addr;
-		return do_strncpy_from_user(dst, src, count, max);
+		long retval;
+
+		user_access_begin();
+		retval = do_strncpy_from_user(dst, src, count, max);
+		user_access_end();
+		return retval;
 	}
 	return -EFAULT;
 }

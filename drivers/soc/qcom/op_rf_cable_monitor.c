@@ -78,7 +78,6 @@ int modify_rf_cable_smem_info(uint32 status)
 	return 0;
 }
 
-
 extern void op_restart_modem(void);
 static void rf_cable_work(struct work_struct *work)
 {

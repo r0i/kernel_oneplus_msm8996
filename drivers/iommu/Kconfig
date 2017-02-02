@@ -77,7 +77,7 @@ endmenu
 
 config OF_IOMMU
        def_bool y
-       depends on OF && IOMMU_API
+       depends on OF
 
 config FSL_PAMU
 	bool "Freescale IOMMU support"

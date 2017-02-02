@@ -22,19 +22,6 @@ struct component_info{
 	char *manufacture;
 };
 
-enum{
-	HW_VERSION__UNKNOWN,
-	HW_VERSION__10 = 10,//all EVB
-	HW_VERSION__11, 	//T0
-	HW_VERSION__12, 	//EVT1
-	HW_VERSION__13, 	//EVT2
-	HW_VERSION__14, 	//EVT3
-	HW_VERSION__15, 	//DVT
-	HW_VERSION__16, 	//PVT/MP
-	HW_VERSION__26 = 26,//15811 PVT
-	HW_VERSION__27 ,    //15811 PVT2
-};
-
 enum COMPONENT_TYPE{
 	DDR,
 	EMMC,
@@ -60,10 +47,8 @@ enum COMPONENT_TYPE{
 	COMPONENT_MAX,
 };
 
-
 int push_component_info(enum COMPONENT_TYPE type, char *version, char * manufacture);
 int reset_component_info(enum COMPONENT_TYPE type);
 uint32 get_hw_version(void);
-
 
 #endif

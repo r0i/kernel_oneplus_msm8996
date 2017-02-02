@@ -175,6 +175,9 @@ obj-$(CONFIG_SENSORS_SSC)	+= sensors/
 obj-$(CONFIG_MOBICORE_DRIVER)	+= gud/
 
 obj-$(CONFIG_NFC)		+= nfc/
-obj-y 	+= param_read_write/
+
 obj-$(CONFIG_OEM_DEBUG_SUPORT)  += oneplus/
+
+obj-y 	+= param_read_write/
+
 obj-y 	+= oem_debug/

@@ -31,7 +31,6 @@
  *
  */
 enum fixed_addresses {
-	FIX_HOLE,
 	FIX_EARLYCON_MEM_BASE,
 	__end_of_permanent_fixed_addresses,
 

@@ -240,7 +240,6 @@ void thaw_fingerprintd(void)
     pm_nosig_freezing = true;
 }
 
-
 void thaw_processes(void)
 {
 	struct task_struct *g, *p;

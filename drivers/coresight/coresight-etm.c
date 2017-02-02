@@ -1930,10 +1930,6 @@ static void etm_init_arch_data(void *info)
 	 */
 	etm_set_prog(drvdata);
 
-	/* check the state of the fuse */
-	if (!coresight_authstatus_enabled(drvdata->base))
-			goto out;
-
 	/* find all capabilities */
 	etmidr = etm_readl(drvdata, ETMIDR);
 	drvdata->arch = BMVAL(etmidr, 4, 11);
@@ -1988,7 +1984,7 @@ static void etm_init_arch_data(void *info)
 			drvdata->data_trace_support = false;
 	} else
 		drvdata->data_trace_support = false;
-out:
+
 	etm_set_pwrdwn(drvdata);
 	ETM_LOCK(drvdata);
 }
@@ -2252,6 +2248,10 @@ static int etm_probe(struct platform_device *pdev)
 	struct etm_drvdata *drvdata;
 	struct resource *res;
 	struct device_node *cpu_node;
+
+	if (coresight_fuse_access_disabled() ||
+	    coresight_fuse_apps_access_disabled())
+		return -EPERM;
 
 	pdata = of_get_coresight_platform_data(dev, pdev->dev.of_node);
 	if (IS_ERR(pdata))

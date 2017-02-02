@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, 2013-2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011, 2013-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -544,7 +544,7 @@ int ghsic_ctrl_setup(unsigned int num_ports, enum gadget_type gtype)
 free_ports:
 	for (i = first_port_id; i < no_ctrl_ports; i++)
 		ghsic_ctrl_port_free(i);
-	no_ctrl_ports = first_port_id;
+		no_ctrl_ports = first_port_id;
 	return ret;
 }
 
@@ -574,7 +574,7 @@ static ssize_t gctrl_read_stats(struct file *file, char __user *ubuf,
 
 		temp += scnprintf(buf + temp, DEBUG_BUF_SIZE - temp,
 				"\nName:        %s\n"
-				"#PORT:%d port: %p\n"
+				"#PORT:%d port: %pK\n"
 				"to_usbhost:    %lu\n"
 				"to_modem:      %lu\n"
 				"cpkt_drp_cnt:  %lu\n"
